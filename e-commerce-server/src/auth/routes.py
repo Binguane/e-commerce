@@ -1,24 +1,59 @@
-from fastapi import APIRouter
-from user.schema import UserCreatSchema
+from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from user.schema import UserCreateSchema
+from .schema import Token, LoginUserSchema, SignupUserSchema
 from user.model import User
 from core.database import session
-from .utils import hash_password
+from .utils import gen_access_token, gen_refresh_token, authenticate_user
+from .repository import create_user, get_by_email
 
 router = APIRouter(prefix='/auth', tags=['Authentication'])
+oauth2_schema=OAuth2PasswordBearer(tokenUrl='auth/login')
+from jose import jwt, JWTError
+
+def verify_token(token: str = Depends(oauth2_schema)) -> dict:
+    try:
+        payload = jwt.decode(token=token, key='secrete', algorithms=['HS256'])
+        return payload
+
+    except JWTError as e:
+        return e
 
 @router.get('/')
 def get_user(session:session):
     return session.query(User).all()
 
-@router.post('/')
-def post_user(user:UserCreatSchema, session:session):
-    new_user = User(
-        name=user.name,
-        email=user.email,
-        hashed_password=hash_password(user.password),
-    )
 
-    session.add(new_user)
-    session.commit()
+@router.post('/signup', response_model=Token)
+def Signup(user:UserCreateSchema, session:session):
 
-    return new_user
+    if get_by_email(user, session):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='email already exists')
+
+    new_user = create_user(user, session)
+
+    if new_user:
+        access_token = gen_access_token(new_user.id)
+        refresh_token = gen_refresh_token(new_user.id)
+
+        return {
+            'access_token':access_token,
+            'refresh_token':refresh_token,
+        }
+
+
+@router.post('/login', response_model=Token)
+def Login(request:LoginUserSchema, session:session):
+
+    user = authenticate_user(request, session)
+    
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Wrong Credentials!')
+
+    access_token = gen_access_token(user.id)
+    refresh_token = gen_refresh_token(user.id)
+
+    return {
+        'access_token':access_token,
+        'refresh_token':refresh_token,
+        }

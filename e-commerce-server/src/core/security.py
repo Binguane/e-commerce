@@ -1,15 +1,15 @@
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
+
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from datetime import timedelta, datetime, timezone
-from .erros import ValidationError
+
 from user.model import User
-from fastapi.security import OAuth2PasswordBearer
 
-from fastapi import Depends
-
+pwt_context = CryptContext(schemes='argon2', deprecated='auto')
 oauth2_schema = OAuth2PasswordBearer(tokenUrl='auth/login')
 
-pwt_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 def hash_password(password:str) -> str:
     return pwt_context.hash(password)
@@ -36,30 +36,10 @@ def gen_refresh_token(user_id) -> str:
 
     return jwt.encode(payload, 'secret')
 
-
-def verify_token(token: str) -> dict:
+def verify_token(token: str = Depends(oauth2_schema)) -> dict:
     try:
         payload = jwt.decode(token=token, key='secrete', algorithms=['HS256'])
         return payload
 
     except JWTError as e:
-        raise ValidationError(e)
-
-def get_by_email(email, session):
-    return session.query(User).filter(User.email==email).first()
-
-def authenticate_user(payload, session):
-    print(payload.email)
-    user = get_by_email(payload.email, session)
-    print(user.hashed_password)
-    if not user:
-        return False
-
-    if not verify_password(payload.password, user.hashed_password):
-        return False
-
-    return user
-
-
-def get_current_user():
-    ...
+        raise Exception

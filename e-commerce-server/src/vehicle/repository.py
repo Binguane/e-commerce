@@ -2,6 +2,7 @@ from .model import Vehicle
 from user.repository import read_resource as read_user
 
 
+
 def create_resource(vehicle, session):
     user = read_user(vehicle.user_id, session)
 
