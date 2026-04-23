@@ -1,5 +1,5 @@
 from .model import Vehicle
-from user.repository import read_resource as read_user
+from user.repository import read_by_id as read_user
 
 
 

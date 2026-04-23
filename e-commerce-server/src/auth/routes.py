@@ -1,23 +1,23 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from user.schema import UserCreateSchema
+from fastapi.security import OAuth2PasswordBearer
+
 from .schema import Token, LoginUserSchema, SignupUserSchema
+from .utils import gen_access_token, gen_refresh_token, authenticate_user
+
 from user.model import User
 from core.database import session
-from .utils import gen_access_token, gen_refresh_token, authenticate_user
-from .repository import create_user, get_by_email
+from user.repository import create_user, read_by_email
 
 router = APIRouter(prefix='/auth', tags=['Authentication'])
 oauth2_schema=OAuth2PasswordBearer(tokenUrl='auth/login')
-from jose import jwt, JWTError
 
-def verify_token(token: str = Depends(oauth2_schema)) -> dict:
-    try:
-        payload = jwt.decode(token=token, key='secrete', algorithms=['HS256'])
-        return payload
+# def verify_token(token: str = Depends(oauth2_schema)) -> dict:
+#     try:
+#         payload = jwt.decode(token=token, key='secrete', algorithms=['HS256'])
+#         return payload
 
-    except JWTError as e:
-        return e
+#     except JWTError as e:
+#         return e
 
 @router.get('/')
 def get_user(session:session):
@@ -25,12 +25,12 @@ def get_user(session:session):
 
 
 @router.post('/signup', response_model=Token)
-def Signup(user:UserCreateSchema, session:session):
+def Signup(request:SignupUserSchema, session:session):
 
-    if get_by_email(user, session):
+    if read_by_email(request.email, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='email already exists')
 
-    new_user = create_user(user, session)
+    new_user = create_user(request, session)
 
     if new_user:
         access_token = gen_access_token(new_user.id)
@@ -57,3 +57,7 @@ def Login(request:LoginUserSchema, session:session):
         'access_token':access_token,
         'refresh_token':refresh_token,
         }
+
+@router.post('/refresh-token')
+def get_refresh_token():
+    ...    

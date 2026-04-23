@@ -1,13 +1,10 @@
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from datetime import timedelta, datetime, timezone
-from .erros import ValidationError
+
 from user.model import User
-from fastapi.security import OAuth2PasswordBearer
 
-from fastapi import Depends
-
-oauth2_schema = OAuth2PasswordBearer(tokenUrl='auth/login')
+# from .erros import ValidationError
 
 pwt_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -16,6 +13,15 @@ def hash_password(password:str) -> str:
 
 def verify_password(password: str, hashed_password: str) -> bool:
     return pwt_context.verify(password, hashed_password)
+
+def gen_refresh_token(user_id) -> str:
+    payload = {
+        'sub': user_id,
+        'exp': datetime.now(timezone.utc) + timedelta(days=7),
+        'type': 'refresh_token'
+    }
+
+    return jwt.encode(payload, 'secret')
 
 def gen_access_token(user_id:str) -> str:
 
@@ -27,39 +33,25 @@ def gen_access_token(user_id:str) -> str:
 
     return jwt.encode(payload, 'secrete', algorithm='HS256')
 
-def gen_refresh_token(user_id) -> str:
-    payload = {
-        'sub': user_id,
-        'exp': datetime.now(timezone.utc) + timedelta(days=7),
-        'type': 'refresh_token'
-    }
-
-    return jwt.encode(payload, 'secret')
-
-
 def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token=token, key='secrete', algorithms=['HS256'])
+        print(payload)
         return payload
 
     except JWTError as e:
-        raise ValidationError(e)
+        return e
 
 def get_by_email(email, session):
     return session.query(User).filter(User.email==email).first()
 
 def authenticate_user(payload, session):
-    print(payload.email)
     user = get_by_email(payload.email, session)
-    print(user.hashed_password)
+    
     if not user:
-        return False
+        return None
 
     if not verify_password(payload.password, user.hashed_password):
-        return False
+        return None
 
     return user
-
-
-def get_current_user():
-    ...
